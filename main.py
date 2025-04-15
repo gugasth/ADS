@@ -21,42 +21,43 @@ with open("resultados.csv", "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(["packet_loss", "buffer", "bandwidth_mbps"])
 
-    for p in packet_losses:
-        print("Packet Loss =====================================", p)
-        subprocess.call(f"sudo vlink -BER {p} router1:pc1@{eid}", shell=True)
-
-        time.sleep(2)
-
-        for b in buffers:
-            print("BUFFER ***************************", b)
-
-            server_cmd = f"sudo himage pc4@{eid} iperf -s -w {b}"
-            server_process = subprocess.Popen(server_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
+    for i in range(0,8):
+        for p in packet_losses:
+            print("Packet Loss =====================================", p)
+            subprocess.call(f"sudo vlink -BER {p} router1:pc1@{eid}", shell=True)
 
             time.sleep(2)
 
-            client_cmd = f'sudo himage pc1@{eid} iperf -c 10.0.2.20 -n 100M -i 1'
-            output = subprocess.check_output(client_cmd, shell=True).decode("utf-8")
-            print(output)
+            for b in buffers:
+                print("BUFFER ***************************", b)
 
-            # Procura a última linha com "Mbits/sec" que contém a vazão total
-            final_bandwidth = None
-            for line in output.strip().split("\n")[::-1]:
-                if "Mbits/sec" in line:
-                    try:
-                        final_bandwidth = line.strip().split()[-2]  # valor numérico
-                        break
-                    except IndexError:
-                        continue
+                server_cmd = f"sudo himage pc4@{eid} iperf -s -w {b}"
+                server_process = subprocess.Popen(server_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
 
-            if final_bandwidth:
-                writer.writerow([p, b, final_bandwidth])
-            else:
-                print("⚠️ Vazão não encontrada no output.")
+                time.sleep(2)
 
-            try:
-                os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
-            except Exception as e:
-                print(f"Erro ao encerrar o servidor: {e}")
+                client_cmd = f'sudo himage pc1@{eid} iperf -c 10.0.2.20 -n 100M -i 1'
+                output = subprocess.check_output(client_cmd, shell=True).decode("utf-8")
+                print(output)
 
-            time.sleep(2)
+                # Procura a última linha com "Mbits/sec" que contém a vazão total
+                final_bandwidth = None
+                for line in output.strip().split("\n")[::-1]:
+                    if "Mbits/sec" in line:
+                        try:
+                            final_bandwidth = line.strip().split()[-2]  # valor numérico
+                            break
+                        except IndexError:
+                            continue
+
+                if final_bandwidth:
+                    writer.writerow([p, b, final_bandwidth])
+                else:
+                    print("⚠️ Vazão não encontrada no output.")
+
+                try:
+                    os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                except Exception as e:
+                    print(f"Erro ao encerrar o servidor: {e}")
+
+                time.sleep(2)
