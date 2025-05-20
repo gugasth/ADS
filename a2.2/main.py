@@ -63,6 +63,8 @@ for i, (n1, n2) in enumerate(states):
     # Diagonal principal
     Q[i, i] = -np.sum(Q[i, :])
 
+print(Q)
+
 # ===============================
 # SOLUÇÃO ANALÍTICA: πQ = 0
 # ===============================
@@ -132,14 +134,32 @@ while current_time < T:
     current_time += dt
     state_counts[i] += dt
 
-    # Sorteio do destino
-    r = random.uniform(0, total_rate)
-    acc = 0
-    for rate, next_state in rates:
-        acc += rate
-        if r < acc:
-            current_state = next_state
-            break
+    # Forma antiga
+
+    # r = random.uniform(0, total_rate)
+    # acc = 0
+    # for rate, next_state in rates:
+    #     acc += rate
+    #     if r < acc:
+    #         current_state = next_state
+    #         break
+
+    # Cálculo da probabilidade de transição P(i, j) a partir da matriz de taxas Q:
+    # Para j ≠ i:
+    # 
+    #     P(i, j) = Q(i, j) / -Q(i, i)
+    #
+    # Essa fórmula converte taxas de transição da CTMC em probabilidades condicionais
+    # de transição, úteis para sorteio do próximo estado após o tempo de estadia.
+    # Construir vetor de probabilidades de transição a partir de taxas
+
+
+    probabilities = [rate / total_rate for rate, _ in rates]
+    next_states = [s for _, s in rates]
+
+    # Escolher próximo estado com base nas probabilidades
+    current_state = random.choices(next_states, weights=probabilities, k=1)[0]
+
 
 # Estimativa de π por simulação
 pi_sim = state_counts / np.sum(state_counts)
