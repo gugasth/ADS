@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg
 import matplotlib.pyplot as plt
 import random
+import scienceplots
 
 # ===============================
 # PARÂMETROS DO SISTEMA
@@ -157,13 +158,15 @@ print(f"Utilização média (simulada):      {sum((n1 + n2) * pi_sim[i] for i, (
 # ===============================
 # VISUALIZAÇÃO
 # ===============================
-plt.figure(figsize=(12, 6))
-plt.plot(pi, label="Analítica")
-plt.plot(pi_sim, label="Simulada", linestyle="dashed")
-plt.title("Distribuição Estacionária: Analítica vs Simulada")
-plt.xlabel("Índice do Estado")
-plt.ylabel("Probabilidade")
-plt.legend()
-plt.grid()
-plt.tight_layout()
-plt.show()
+with plt.style.context(['science', 'ieee', 'no-latex']):
+    plt.figure(figsize=(12, 6))
+    plt.plot(pi, label="Analitica")
+    plt.plot(pi_sim, label="Simulada", linestyle="dashed")
+    plt.title("Distribuicao Estacionaria: Analitica vs Simulada")
+    plt.xlabel("Indice do Estado")
+    plt.ylabel("Probabilidade")
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig('distribuicao_estacionaria.png')
+    plt.close()
