@@ -1,3 +1,6 @@
+import heapq
+
+
 class Event:
     def __init__(self, time):
         self.time = time  # Tempo em que o evento ocorre
@@ -9,7 +12,6 @@ class Event:
     def processing_event(self, simulator):
         # Deve ser implementado pelas subclasses
         raise NotImplementedError("Subclasses devem implementar este método")
-import heapq
 
 class Simulator:
     def __init__(self, end_time):
@@ -37,68 +39,12 @@ class Channel:
         self.collisions = 0
 
     def is_busy(self, now):
-        # algum Tx válido ainda não terminou?
+        # Só considera transmissões em andamento
         return any(end > now for _, _, end in self.active_txs)
 
     def register_tx(self, station, start, end):
-        # colisão se existe outro início < start <= inicio + prop_delay
-        congested = [
-            (st, s, e) for st, s, e in self.active_txs
-            if (start - s) < self.prop_delay
-        ]
-        if congested:
-            # marcar colisão de todos os envolvidos
-            self.collisions += 1 + len({
-                st for st, _, _ in congested if not st.in_collision
-            })
-            for st, *_ in congested:
-                st.in_collision = True
-            station.in_collision = True
-        self.active_txs.append((station, start, end))
-
-    def clear_finished(self, now):
-        self.active_txs = [(st, s, e) for st, s, e in self.active_txs if e > now]
-
-
-class Station:
-    def __init__(self, name, sim, pkt_gen, max_queue_bytes=5000):
-        self.name = name
-        self.sim   = sim
-        self.pkt_gen = pkt_gen              # gerador (iterable) de (arrival_time, pkt_size)
-        self.queue_bytes = 0
-        self.queue       = []               # [(pkt_size)]
-        self.max_q       = max_queue_bytes
-        # contadores
-        self.tx_bytes_ok = 0
-        self.backoffs    = 0
-        self.in_collision = False           # flag temporária
-
-    # ---------- API usada pelos eventos ----------
-    def enqueue(self, size):
-        if self.queue_bytes + size <= self.max_q:
-            self.queue.append(size)
-            self.queue_bytes += size
-            return True
-        return False                         # descarta se fila cheia
-
-    def schedule_next_tx_if_idle(self):
-        ch = self.sim.channel
-        if self.queue and not ch.is_busy(self.sim.current_time):
-            self.sim.schedule(StartTxEvent(self.sim.current_time, self))
-
-# ----------------- modelos básicos -----------------
-class Channel:
-    def __init__(self, prop_delay):
-        self.prop_delay = prop_delay          # (s)
-        self.active_txs = []                  # [(station, start_time, end_time)]
-        self.collisions = 0
-
-    def is_busy(self, now):
-        # algum Tx válido ainda não terminou?
-        return any(end > now for _, _, end in self.active_txs)
-
-    def register_tx(self, station, start, end):
-        # colisão se existe outro início < start <= inicio + prop_delay
+        self.clear_finished(start)
+        # Colisão se existe outra transmissão que começou há menos que prop_delay
         congested = [
             (st, s, e) for st, s, e in self.active_txs
             if (start - s) < self.prop_delay
@@ -199,7 +145,7 @@ class BackoffExpireEvent(Event):
         # devolve o pacote na frente da fila e tenta novo envio
         self.station.queue.insert(0, self.pkt_size)
         self.station.queue_bytes += self.pkt_size
-        self.station.schedule_next_tx_if_idle()
+        self.station.schedule_next_tx_if_idle()  # tenta de novo
 
 
 import random, heapq, itertools
@@ -213,31 +159,32 @@ class DESCollisionSim(Simulator):
         self.bo_min, self.bo_max = 0.001, 0.02
 
         # ----- construir estações -----
-        self.stationA = Station("A", self,
-                                pkt_gen=self._poisson_gen(lmbd_pps=80))  # exemplo λ=80 pps
-        self.stationB = Station("B", self,
-                                pkt_gen=self._periodic_gen(period=0.040, size=500))
+        self.stationA = Station("A", self, pkt_gen=self._poisson_gen(lmbd_pps=1000))  # λ=1000 pps
+        self.stationB = Station("B", self, pkt_gen=self._periodic_gen(period=0.005, size=500))  # 5ms = 200 pps
         # agendar chegadas iniciais
         self._prime_arrivals()
 
     # ---------- Geradores de chegada ----------
     def _poisson_gen(self, lmbd_pps):
-        t = self.rng.expovariate(lmbd_pps)            # primeira chegada
+        t = self.current_time
         while True:
-            size = self.rng.randint(20, 1000)
-            yield self.current_time + t, size
             t += self.rng.expovariate(lmbd_pps)
+            size = self.rng.randint(20, 1000)
+            yield t, size
 
     def _periodic_gen(self, period, size):
-        t = period
+        t = self.current_time
         while True:
-            yield self.current_time + t, size
             t += period
+            yield t, size
 
     def _prime_arrivals(self):
-        for st in (self.stationA, self.stationB):
-            t, size = next(st.pkt_gen)
-            self.schedule(PacketArrivalEvent(t, st, size))
+        # Força as duas estações a tentarem transmitir no mesmo instante
+        t = self.current_time + 0.001
+        sizeA = 1000
+        sizeB = 1000
+        self.schedule(PacketArrivalEvent(t, self.stationA, sizeA))
+        self.schedule(PacketArrivalEvent(t, self.stationB, sizeB))
 
     # ---------- Relatório final ----------
     def report(self):
@@ -251,6 +198,6 @@ class DESCollisionSim(Simulator):
         print(f"Colisões totais       : {self.channel.collisions}")
 
 if __name__ == "__main__":
-    sim = DESCollisionSim(end_time=50.0)    # 5 s de simulação
+    sim = DESCollisionSim(end_time=5.0)    # 5 s de simulação
     sim.run()
     sim.report()
