@@ -1,4 +1,5 @@
 import heapq
+import random, heapq, itertools
 
 
 class Event:
@@ -147,7 +148,6 @@ class BackoffExpireEvent(Event):
         self.station.schedule_next_tx_if_idle()  # tenta de novo
 
 
-import random, heapq, itertools
 class DESCollisionSim(Simulator):
     def __init__(self, end_time, seed=42):
         super().__init__(end_time)
