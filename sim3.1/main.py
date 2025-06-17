@@ -85,8 +85,7 @@ class Station:
         return False                         # descarta se fila cheia
 
     def schedule_next_tx_if_idle(self):
-        ch = self.sim.channel
-        if self.queue and not ch.is_busy(self.sim.current_time):
+        if self.queue:
             self.sim.schedule(StartTxEvent(self.sim.current_time, self))
 
 class PacketArrivalEvent(Event):
@@ -198,6 +197,6 @@ class DESCollisionSim(Simulator):
         print(f"Colisões totais       : {self.channel.collisions}")
 
 if __name__ == "__main__":
-    sim = DESCollisionSim(end_time=5.0)    # 5 s de simulação
+    sim = DESCollisionSim(end_time=2.0)    # 2 s de simulação
     sim.run()
     sim.report()
