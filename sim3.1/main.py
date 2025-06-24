@@ -74,7 +74,8 @@ class Station:
         self.max_q       = max_queue_bytes
         # contadores
         self.tx_bytes_ok = 0
-        self.backoffs    = 0
+        self.backoffs    = 0                # backoffs por colisão
+        self.busy_backoffs = 0              # backoffs por canal ocupado
         self.in_collision = False           # flag temporária
 
     # ---------- API usada pelos eventos ----------
@@ -87,7 +88,15 @@ class Station:
 
     def schedule_next_tx_if_idle(self):
         if self.queue:
-            self.sim.schedule(StartTxEvent(self.sim.current_time, self))
+            # Verifica se o canal está ocupado antes de transmitir
+            if self.sim.channel.is_busy(self.sim.current_time):
+                # Canal ocupado: agenda backoff aleatório
+                self.busy_backoffs += 1
+                bo = self.sim.rng.uniform(self.sim.bo_min, self.sim.bo_max)
+                self.sim.schedule(BackoffExpireEvent(self.sim.current_time + bo, self, None))
+            else:
+                # Canal livre: transmite imediatamente
+                self.sim.schedule(StartTxEvent(self.sim.current_time, self))
 
 class PacketArrivalEvent(Event):
     def __init__(self, time, station, pkt_size):
@@ -142,10 +151,13 @@ class BackoffExpireEvent(Event):
         self.station, self.pkt_size = station, pkt_size
 
     def processing_event(self, sim):
-        # devolve o pacote na frente da fila e tenta novo envio
-        self.station.queue.insert(0, self.pkt_size)
-        self.station.queue_bytes += self.pkt_size
-        self.station.schedule_next_tx_if_idle()  # tenta de novo
+        if self.pkt_size is not None:
+            # Backoff por colisão: devolve o pacote na frente da fila
+            self.station.queue.insert(0, self.pkt_size)
+            self.station.queue_bytes += self.pkt_size
+        
+        # Tenta transmitir novamente (pode ser canal ocupado ou retry de colisão)
+        self.station.schedule_next_tx_if_idle()
 
 
 class DESCollisionSim(Simulator):
@@ -193,7 +205,9 @@ class DESCollisionSim(Simulator):
         for st in (self.stationA, self.stationB):
             print(f"Estação {st.name}:")
             print(f"  Vazão efetiva     : {throughput(st.tx_bytes_ok):,.1f} bit/s")
-            print(f"  Back‑offs         : {st.backoffs}")
+            print(f"  Back‑offs (colisão): {st.backoffs}")
+            print(f"  Back‑offs (ocupado): {st.busy_backoffs}")
+            print(f"  Total back‑offs   : {st.backoffs + st.busy_backoffs}")
         print(f"Colisões totais       : {self.channel.collisions}")
 
 if __name__ == "__main__":
