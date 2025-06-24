@@ -170,8 +170,8 @@ class DESCollisionSim(Simulator):
         self.bo_min, self.bo_max = 0.001, 0.02
 
         # ----- construir estações -----
-        self.stationA = Station("A", self, pkt_gen=self._poisson_gen(lmbd_pps=1000))  # λ=1000 pps
-        self.stationB = Station("B", self, pkt_gen=self._periodic_gen(period=0.005, size=500))  # 5ms = 200 pps
+        self.stationA = Station("A", self, pkt_gen=self._poisson_gen(lmbd_pps=1000))  # λ=1000 pps
+        self.stationB = Station("B", self, pkt_gen=self._periodic_gen(period=0.040, size=500))  # 40ms = 25 pps
         # agendar chegadas iniciais
         self._prime_arrivals()
 
@@ -211,6 +211,6 @@ class DESCollisionSim(Simulator):
         print(f"Colisões totais       : {self.channel.collisions}")
 
 if __name__ == "__main__":
-    sim = DESCollisionSim(end_time=2.0)    # 2 s de simulação
+    sim = DESCollisionSim(end_time=5.0)
     sim.run()
     sim.report()
