@@ -39,16 +39,21 @@ class Channel:
         self.active_txs = []                  # [(station, start_time, end_time)]
         self.collisions = 0
 
-    def is_busy(self, now):
-        # Só considera transmissões em andamento
-        return any(end > now for _, _, end in self.active_txs)
+    def is_busy(self, now, local_station=None):
+        return any(
+            (now >= start + self.prop_delay) and (now < end)
+            for st, start, end in self.active_txs
+            if st != local_station
+        )
+
+
 
     def register_tx(self, station, start, end):
         self.clear_finished(start)
         # Colisão se existe outra transmissão que começou há menos que prop_delay
         congested = [
             (st, s, e) for st, s, e in self.active_txs
-            if (start - s) < self.prop_delay
+            if abs(start - s) < self.prop_delay
         ]
         if congested:
             # marcar colisão de todos os envolvidos
@@ -89,7 +94,7 @@ class Station:
     def schedule_next_tx_if_idle(self):
         if self.queue:
             # Verifica se o canal está ocupado antes de transmitir
-            if self.sim.channel.is_busy(self.sim.current_time):
+            if self.sim.channel.is_busy(self.sim.current_time, local_station=self):
                 # Canal ocupado: agenda backoff aleatório
                 self.busy_backoffs += 1
                 bo = self.sim.rng.uniform(self.sim.bo_min, self.sim.bo_max)
@@ -170,10 +175,14 @@ class DESCollisionSim(Simulator):
         self.bo_min, self.bo_max = 0.001, 0.02
 
         # ----- construir estações -----
-        self.stationA = Station("A", self, pkt_gen=self._poisson_gen(lmbd_pps=1000))  # λ=1000 pps
+        self.stationA = Station("A", self, pkt_gen=self._poisson_gen(lmbd_pps=50))  # λ=50 pps
         self.stationB = Station("B", self, pkt_gen=self._periodic_gen(period=0.040, size=500))  # 40ms = 25 pps
         # agendar chegadas iniciais
-        self._prime_arrivals()
+        #self._prime_arrivals()
+        tA, sizeA = next(self.stationA.pkt_gen)
+        tB, sizeB = next(self.stationB.pkt_gen)
+        self.schedule(PacketArrivalEvent(tA, self.stationA, sizeA))
+        self.schedule(PacketArrivalEvent(tB, self.stationB, sizeB))
 
     # ---------- Geradores de chegada ----------
     def _poisson_gen(self, lmbd_pps):
